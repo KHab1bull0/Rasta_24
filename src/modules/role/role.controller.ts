@@ -4,50 +4,60 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RoleService } from './role.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { ReqIdDto } from 'src/shared/dtos';
+import { IUpdateRoleReq } from './role.interface';
+import { RequirePermission } from 'src/shared/decorators/require-permission.decorator';
+import { PERMISSIONS } from 'src/shared/constants/permissions.constants';
 
 @ApiTags('Role')
+@ApiBearerAuth()
 @Controller('role')
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}
 
-  @ApiOperation({ summary: 'Create role' })
   @Post()
+  @RequirePermission(PERMISSIONS.USER_UPDATE)
+  @ApiOperation({ summary: "Yangi rol yaratish (faqat superadmin)" })
   create(@Body() body: CreateRoleDto) {
     return this.roleService.create(body.name);
   }
 
-  @ApiOperation({ summary: 'Get all roles' })
   @Get()
+  @RequirePermission(PERMISSIONS.USER_READ)
+  @ApiOperation({ summary: "Barcha rollar ro'yxati" })
   findAll() {
     return this.roleService.findAll();
   }
 
-  @ApiOperation({ summary: 'Get role by id' })
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.roleService.findOne(id);
+  @RequirePermission(PERMISSIONS.USER_READ)
+  @ApiOperation({ summary: "Rol ma'lumotlari" })
+  findOne(@Param() param: ReqIdDto) {
+    return this.roleService.findOne(param);
   }
 
-  @ApiOperation({ summary: 'Update role name' })
   @Patch(':id')
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: UpdateRoleDto,
-  ) {
-    return this.roleService.update(id, body.name);
+  @RequirePermission(PERMISSIONS.USER_UPDATE)
+  @ApiOperation({ summary: "Rol nomini yangilash (faqat superadmin)" })
+  update(@Param() param: ReqIdDto, @Body() body: UpdateRoleDto) {
+    const data: IUpdateRoleReq = {
+      id: param.id,
+      name: body.name,
+    };
+    return this.roleService.update(data);
   }
 
-  @ApiOperation({ summary: 'Delete role (soft)' })
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.roleService.remove(id);
+  @RequirePermission(PERMISSIONS.USER_UPDATE)
+  @ApiOperation({ summary: "Rol o'chirish (soft)" })
+  remove(@Param() param: ReqIdDto) {
+    return this.roleService.remove(param);
   }
 }

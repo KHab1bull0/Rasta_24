@@ -1,20 +1,23 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHmac } from 'crypto';
 import {
-  LoginReq,
-  LoginRes,
-  TelegramUser,
-  TokenPayload,
+  IGetProfileReq,
+  ILoginReq,
+  ILoginRes,
+  InitSignupReq,
+  ITokenPayload,
+  ITelegramUser,
+  IVerifyCodeReq,
 } from './auth.interface';
-import { HttpResponse, ServerResponse } from 'src/shared/types/interfaces';
+import { ApiResponse, ISuccess } from 'src/shared/types/interfaces';
 import { ManagerEntity } from 'src/database/entities/manager.entity';
 import { UserEntity } from 'src/database/entities/user.entity';
 import { CustomerEntity } from 'src/database/entities/customer.entity';
-import { comparePasswords, setResult } from 'src/shared/helper';
+import { comparePasswords } from 'src/shared/helper';
 import { MyError } from 'src/shared/errors';
 import { JwtService, JwtVerifyOptions } from '@nestjs/jwt';
-import { UserType } from 'src/shared/types/enums';
+import { UserRole, UserType } from 'src/shared/types/enums';
+import { IManager } from '../manager/manager.interface';
 
 @Injectable()
 export class AuthService {
@@ -25,44 +28,48 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async login(data: LoginReq): Promise<ServerResponse<LoginRes>> {
-    const user = await ManagerEntity.findOne({
-      where: {
-        login: data.login,
-      },
-      relations: {
-        role: true,
-      },
+  async login(data: ILoginReq): Promise<ApiResponse<ILoginRes>> {
+    const manager = await ManagerEntity.findOne({
+      where: { login: data.login },
     });
 
     const isMatched =
-      user && (await comparePasswords(data.password, user.password));
+      manager && (await comparePasswords(data.password, manager.password));
 
-    if (!user || !isMatched) {
-      return { data: null, errId: MyError.INVALID_CREDENTIALS.errId };
+    if (!manager || !isMatched) {
+      return { errId: MyError.INVALID_CREDENTIALS.errId };
     }
-    const payload: TokenPayload = {
-      userId: user.id,
-      roleId: user.role.id,
+
+    const role = manager.isSuperadmin ? UserRole.SUPERADMIN : UserRole.BAKER;
+
+    const payload: ITokenPayload = {
+      sub: manager.id,
+      role,
     };
 
     const tokens = await this.generateToken(payload, true);
-    if (!tokens) return { errId: MyError.BAD_REQUEST.errId, data: null };
+    if (!tokens) return { errId: MyError.BAD_REQUEST.errId };
 
-    const response: LoginRes = {
-      id: user.id,
-      login: user.login,
-      roleId: user.role.id,
-      roleName: user.role.name,
+    const response: ILoginRes = {
+      id: manager.id,
+      login: manager.login,
+      role,
       ...tokens,
     };
 
     return { data: response };
   }
 
-  private async generateToken(
-    data: TokenPayload,
+  generateToken(
+    data: ITokenPayload,
     refresh: boolean = false,
+  ): Promise<{ accessToken: string; refreshToken?: string } | null> {
+    return this._signToken(data, refresh);
+  }
+
+  private async _signToken(
+    data: ITokenPayload,
+    refresh: boolean,
   ): Promise<{ accessToken: string; refreshToken?: string } | null> {
     try {
       const accessExpiresIn = this.configService.get('auth.jwtExpirationTime');
@@ -97,81 +104,130 @@ export class AuthService {
   async validateToken(
     token: string,
     isRefresh: boolean = false,
-  ): Promise<TokenPayload | null> {
-    try {
-      if (isRefresh) {
-        const options: JwtVerifyOptions = {};
-
-        options.secret = this.configService.get('auth.refreshSecret');
-
-        return this.jwtService.verifyAsync<TokenPayload>(token, options);
-      }
-
-      return this.jwtService.verifyAsync<TokenPayload>(token);
-    } catch (error) {
-      this.logger.error('[validateToken]: ', error);
-      return null;
+  ): Promise<ITokenPayload | null> {
+    if (isRefresh) {
+      const options: JwtVerifyOptions = {
+        secret: this.configService.get('auth.refreshSecret'),
+      };
+      return this.jwtService.verifyAsync<ITokenPayload>(token, options);
     }
+
+    return this.jwtService.verifyAsync<ITokenPayload>(token);
   }
 
-  async initSignup(
-    telegramUser: TelegramUser,
-    phone: string,
-  ): Promise<HttpResponse> {
+  async findOrCreateTelegramUser(tgUser: ITelegramUser): Promise<UserEntity> {
+    let user = await UserEntity.findOne({
+      where: { telegramId: String(tgUser.id) },
+    });
+
+    if (!user) {
+      user = UserEntity.create({
+        telegramId: String(tgUser.id),
+        firstName: tgUser.first_name ?? null,
+        lastName: tgUser.last_name ?? null,
+        languageCode: tgUser.language_code ?? null,
+        role: UserRole.CUSTOMER,
+        userType: UserType.CUSTOMER,
+        isActive: true,
+      });
+      await user.save();
+
+      const customer = CustomerEntity.create({
+        username: tgUser.username ?? '',
+        user,
+      });
+      await customer.save();
+    }
+
+    return user;
+  }
+
+  async telegramLogin(
+    tgUser: ITelegramUser,
+  ): Promise<ApiResponse<{ accessToken: string }>> {
+    const user = await this.findOrCreateTelegramUser(tgUser);
+
+    const payload: ITokenPayload = {
+      sub: user.id,
+      role: user.role ?? UserRole.CUSTOMER,
+    };
+
+    const tokens = await this.generateToken(payload);
+    if (!tokens) return { errId: MyError.BAD_REQUEST.errId };
+
+    return { data: { accessToken: tokens.accessToken } };
+  }
+
+  async initSignup(data: InitSignupReq): Promise<ApiResponse<ISuccess>> {
     const existing = await UserEntity.findOne({
-      where: { telegramId: String(telegramUser.id) },
+      where: { telegramId: String(data.telegramId) },
     });
 
     if (existing) {
-      const customer = await CustomerEntity.findOne({
-        where: { user: { id: existing.id } },
-        relations: { user: true },
-      });
-      return setResult({ user: existing, customer }, null);
+      return { data: { success: true } };
     }
 
     const user = UserEntity.create({
-      telegramId: String(telegramUser.id),
-      firstName: telegramUser.first_name ?? null,
-      lastName: telegramUser.last_name ?? null,
-      languageCode: telegramUser.language_code ?? null,
+      telegramId: String(data.telegramId),
+      firstName: data.firstName ?? null,
+      lastName: data.lastName ?? null,
+      languageCode: data.language ?? null,
+      role: UserRole.CUSTOMER,
       userType: UserType.CUSTOMER,
       isActive: true,
     });
     await user.save();
 
     const customer = CustomerEntity.create({
-      username: telegramUser.username ?? '',
-      phone,
+      username: data.username ?? '',
+      phone: data.phone,
       user,
     });
     await customer.save();
 
-    return setResult({ user, customer }, null);
+    return { data: { success: true } };
   }
 
-  validateInitData(initData: string): any {
-    const urlParams = new URLSearchParams(initData);
-    const hash = urlParams.get('hash');
-    urlParams.delete('hash');
+  async verifyCode(data: IVerifyCodeReq): Promise<ApiResponse<ISuccess>> {
+    const manager = await ManagerEntity.findOneBy({ inviteCode: data.code });
+    if (!manager) return { errId: MyError.INVALID_CREDENTIALS.errId };
 
-    const dataCheckString = Array.from(urlParams.entries())
-      .map(([key, value]) => `${key}=${value}`)
-      .sort()
-      .join('\n');
+    const user = await UserEntity.findOneBy({ telegramId: data.telegramId });
+    if (!user) return { errId: MyError.USER_NOT_FOUND.errId };
 
-    const secretKey = createHmac('sha256', 'WebAppData')
-      .update(this.configService.get('BOT_TOKEN'))
-      .digest();
+    manager.isVerified = true;
+    manager.user = user;
+    await manager.save();
 
-    const hmac = createHmac('sha256', secretKey)
-      .update(dataCheckString)
-      .digest('hex');
+    return { data: { success: true } };
+  }
 
-    if (hmac !== hash) {
-      throw new UnauthorizedException('Ma’lumotlar haqiqiy emas!');
-    }
+  async getProfile(data: IGetProfileReq): Promise<ApiResponse<IManager>> {
+    const manager = await ManagerEntity.createQueryBuilder('m')
+      .leftJoinAndSelect('m.role', 'role')
+      .leftJoinAndSelect('m.user', 'user')
+      .select([
+        'm.id',
+        'm.login',
+        'm.inviteCode',
+        'm.isVerified',
+        'm.brandName',
+        'm.phone',
+        'm.photo',
+        'm.isSuperadmin',
+        'role.id',
+        'role.name',
+        'user.id',
+        'user.firstName',
+        'user.lastName',
+        'user.telegramId',
+        'user.isActive',
+      ])
+      .where('m.id = :id', { id: data.sub })
+      .getOne();
 
-    return JSON.parse(urlParams.get('user'));
+    if (!manager) return { errId: MyError.USER_NOT_FOUND.errId };
+
+    return { data: manager };
   }
 }

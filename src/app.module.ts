@@ -11,13 +11,15 @@ import databaseConfig from './config/database.config';
 import authConfig from './config/auth.config';
 import cloudflareConfig from './config/cloudflare.config';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
-import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { AllExceptionFilter } from './shared/filters/all.exception';
 import { AuthGuard } from './shared/guards/auth.guard';
+import { PermissionGuard } from './shared/guards/permission.guard';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { UserModule } from './modules/user/user.module';
 import { ManagerModule } from './modules/manager/manager.module';
 import { RoleModule } from './modules/role/role.module';
+import { LoggingInterceptor } from './shared/interceptors/logging.interceptor';
 
 @Module({
   imports: [
@@ -71,10 +73,14 @@ import { RoleModule } from './modules/role/role.module';
       provide: APP_GUARD,
       useClass: AuthGuard,
     },
-    // {
-    //   provide: APP_INTERCEPTOR,
-    //   useClass: LoggingInterceptor,
-    // },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
+    },
     {
       provide: APP_FILTER,
       useClass: AllExceptionFilter,

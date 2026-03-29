@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IFindByTelegramIdReq } from './user.interface';
-import { ServerResponse } from 'src/shared/types/interfaces';
+import { ApiResponse } from 'src/shared/types/interfaces';
 import { UserEntity } from 'src/database/entities/user.entity';
 import { ConfigService } from '@nestjs/config';
 
@@ -10,11 +10,11 @@ export class UserService {
 
   async findByTelegramId(
     data: IFindByTelegramIdReq,
-  ): Promise<ServerResponse<any>> {
+  ): Promise<ApiResponse<UserEntity>> {
     const user = await UserEntity.findOne({
       where: { telegramId: data.telegramId },
     });
 
-    return { data: { user } };
+    return { data: user };
   }
 }

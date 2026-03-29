@@ -2,22 +2,23 @@ export interface ErrorObject {
   errId: number;
   message: string;
 }
-export interface HttpResponse<T = any> {
-  error?: ErrorObject | null;
-  data: T;
-}
-export interface ServerResponse<T = any> {
+
+export interface ApiResponse<T = null> {
+  data?: T | null;
   errId?: number | null;
-  data: T | null;
+  error?: ErrorObject | null;
 }
-export interface Success {
+
+export interface ISuccess {
   success: boolean;
 }
-export interface ReqId {
+
+export interface IReqId {
   id: number;
   initiatorId?: number;
 }
-export interface Pagination {
+
+export interface IPagination {
   offset: number;
   limit: number;
 }

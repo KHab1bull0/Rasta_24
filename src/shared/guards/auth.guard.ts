@@ -7,7 +7,9 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { AuthService } from 'src/modules/auth/auth.service';
-import { IS_PUBLIC_KEY } from '../decorator/public.decorator';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { ROLE_PERMISSIONS } from '../constants/roles.constants';
+import { RequestUser } from 'src/modules/auth/auth.interface';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -19,31 +21,25 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
-    // check is public route
-    const isPublic = this.reflector.get<boolean>(
-      IS_PUBLIC_KEY,
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
-    );
-    if (isPublic) {
-      return true;
-    }
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
 
     const token = this.extractTokenFromHeader(request);
-
-    if (!token) {
-      throw new UnauthorizedException();
-    }
+    if (!token) throw new UnauthorizedException();
 
     const payload = await this.authService.validateToken(token);
-
-    // const session = payload
-    //   ? await this.authService.validateSession(payload)
-    //   : null;
-
     if (!payload) throw new UnauthorizedException();
 
-    request['payload'] = payload;
+    const reqUser: RequestUser = {
+      sub: payload.sub,
+      role: payload.role,
+      permissions: new Set(ROLE_PERMISSIONS[payload.role] ?? []),
+    };
 
+    request['user'] = reqUser;
     return true;
   }
 

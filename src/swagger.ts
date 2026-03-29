@@ -15,11 +15,9 @@ export function setupSwagger(app, appConfig: ConfigService) {
       defaultModelsExpandDepth: -1,
       docExpansion: 'none',
     },
-    customCss: `
-    .swagger-ui {
-      margin-bottom: 300px;
-    }
-  `,
+    customCssUrl: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
+    ],
   };
 
   const config = new DocumentBuilder()

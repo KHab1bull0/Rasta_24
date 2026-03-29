@@ -8,14 +8,11 @@ export const validationSchema = Joi.object({
   // database
   DATABASE_URL: Joi.string().uri(),
 
-  //   // auth
-  //   JWT_SECRET: Joi.string(),
-  //   JWT_EXPIRATION_TIME: Joi.string(),
-  //   JWT_REFRESH_SECRET: Joi.string(),
-  //   JWT_REFRESH_EXPIRATION_TIME: Joi.string(),
-
-  //   // Firebase
-  //   FIREBASE_CREDENTIALS: Joi.string(),
+  // auth
+  JWT_SECRET: Joi.string(),
+  JWT_EXPIRATION_TIME: Joi.string(),
+  JWT_REFRESH_SECRET: Joi.string(),
+  JWT_REFRESH_EXPIRATION_TIME: Joi.string(),
 
   //   // Cloudflare
   //   CLOUDFLARE_BUCKET_NAME: Joi.string(),

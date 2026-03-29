@@ -1,4 +1,6 @@
-export interface TelegramUser {
+import { UserRole } from 'src/shared/types/enums';
+
+export interface ITelegramUser {
   id: number;
   first_name?: string;
   last_name?: string;
@@ -6,27 +8,48 @@ export interface TelegramUser {
   language_code?: string;
 }
 
-export interface LoginReq {
+export interface ILoginReq {
   login: string;
   password: string;
 }
-export interface LoginRes {
+
+export interface ILoginRes {
   id: number;
   login: string;
-  roleId?: number;
-  roleName?: string;
-  phone?: string;
-  photo?: string;
+  role: UserRole;
   accessToken: string;
   refreshToken?: string;
 }
-export interface TokenPayload {
-  userId: number;
-  roleId: number;
-  sessionId?: string;
+
+export interface ITokenPayload {
+  sub: number;
+  role: UserRole;
 }
-export interface LogoutReq {
-  fcmToken?: string;
+
+export interface RequestUser {
+  sub: number;
+  role: UserRole;
+  permissions: Set<string>;
+}
+
+export interface ILogoutReq {
   userId: number;
-  sessionId: string;
+}
+
+export interface InitSignupReq {
+  telegramId: string;
+  language: string;
+  phone: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface IVerifyCodeReq {
+  telegramId: string;
+  code: string;
+}
+
+export interface IGetProfileReq {
+  sub: number;
 }

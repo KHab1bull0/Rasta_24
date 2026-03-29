@@ -1,7 +1,7 @@
 import { QueryRunner } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { MyError } from './errors';
-import { HttpResponse } from './types/interfaces';
+import { ApiResponse } from './types/interfaces';
 
 export async function rollbackActiveTransaction(
   queryRunner: QueryRunner,
@@ -33,14 +33,17 @@ export function generateInviteCode(length = 8): string {
   return result;
 }
 
-export function setResult(data: any, errId: number | null): HttpResponse {
+export function setResult<T = null>(
+  data: T | null,
+  errId: number | null,
+): ApiResponse<T> {
   if (errId) {
     const error = MyError.getErrorByErrId(errId);
     return {
       data: null,
       error: {
         errId: error.errId,
-        message: data ?? error.message,
+        message: error.message,
       },
     };
   }

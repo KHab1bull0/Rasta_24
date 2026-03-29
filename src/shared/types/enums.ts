@@ -3,6 +3,13 @@ export enum AppMode {
   TEST = 'test',
   PROD = 'prod',
 }
+
+export enum UserRole {
+  SUPERADMIN = 'superadmin',
+  BAKER = 'baker',
+  CUSTOMER = 'customer',
+}
+
 export enum UserType {
   MANAGER = 1,
   CUSTOMER = 2,
